@@ -96,7 +96,60 @@ func main() {
 	})
 
 	app.Put("/employee/:id", func(c *fiber.Ctx) error {
+		idPram := c.Prams("id")
 
+		employeeID, err := primitive.ObjectIDFromHex(idPram)
+
+		if err != nil {
+			return c.SendStatus(400)
+		}
+
+		employee := new(Employee)
+
+		if err := c.BodyParser(employee); err != nil {
+			return c.Status(400).SendString(err.Error())
+		}
+		query := bson.D{{Key: "_id", Value: employeeID}}
+		update := bson.D{
+			{Key: "$Set",
+				Value: bson.D{
+					{Key: "name", Value: employee.Name},
+					{Key: "age", Value: employee.Age},
+					{Key: "salary", Value: employee.Salary},
+				},
+			},
+		},
+		err = mg.Db.Collection("employees").FindOneAndUpdate(c.Context(), query, update).Err()
+
+		if err != nil {
+			if err == mongo.ErrNoDocuments{
+				return c.SendStatus(400)
+			}
+			return c.SendStatus(500)
+
+			employee.ID = idPram
+			return c.Status(200).JSON(employee)
+		}
 	})
-	app.Delete("/employee/:id")
+	app.Delete("/employee/:id", func(c *fiber.Ctx)error{
+		employeeID, err := primitive.ObjectIDFromHex(c.Prams("id"),)
+		if err != nil{
+			return c.SendStatus(400)
+		}
+		query := bson.D{{Key:"_id", Value: employeeID}}
+		result, err := mg.Db.Collection("employees").DeleteOne(c.Context(), &query)
+
+		if err != nil {
+			return c.SendStatus(500)
+		}
+		
+		if result.DeletedCount < 1{
+			return c.SendStatus(404)
+		}
+
+		return  c.Status(200).JSON("record delete")
+	})
+
+
+	log.Fatal(app.Listen(":3000"))
 }
